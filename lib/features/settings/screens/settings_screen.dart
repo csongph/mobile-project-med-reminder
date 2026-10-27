@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/state/app_state.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -213,6 +214,14 @@ class SettingsScreen extends ConsumerWidget {
                       'แอปช่วยจัดการตารางยาและประวัติการรับประทานยา',
                 ),
               ),
+              const Divider(height: 1, indent: 64),
+              ListTile(
+                leading: const _LeadingIcon(Icons.logout_rounded),
+                title: const Text('ออกจากระบบ'),
+                subtitle: const Text('Sign out จากบัญชีผู้ใช้'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => _signOut(context),
+              ),
             ],
           ),
           const SizedBox(height: 28),
@@ -346,6 +355,36 @@ class SettingsScreen extends ConsumerWidget {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('ลบข้อมูลไม่สำเร็จ กรุณาลองอีกครั้ง')),
+        );
+      }
+    }
+  }
+
+  static Future<void> _signOut(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ออกจากระบบ'),
+        content: const Text('คุณต้องการออกจากระบบหรือไม่?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ออกจากระบบ'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      try {
+        await AuthService().signOut();
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ออกจากระบบไม่สำเร็จ: $e')),
         );
       }
     }
