@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:collection/collection.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../../features/medications/models/medication.dart';
 import '../../features/schedules/models/schedule.dart';
 import '../../features/logs/models/intake_log.dart';
 import '../services/notification_service.dart';
+import '../services/sync_service.dart';
 
 class DoseItem {
   final String scheduleId;
@@ -156,6 +158,15 @@ class AppStateNotifier extends Notifier<AppState> {
       } catch (_) {
         // Keep saved medication data even if OS scheduling is unavailable.
       }
+      // Firebase is optional in offline mode. When configured and signed in,
+      // mirror the local snapshot to the authenticated user's Firestore path.
+      if (Firebase.apps.isNotEmpty) {
+        await SyncService().syncSnapshot(
+          medications: snapshot.medications,
+          schedules: snapshot.schedules,
+          logs: snapshot.logs,
+        );
+      }
     });
     return _persistenceQueue;
   }
@@ -276,6 +287,7 @@ class AppStateNotifier extends Notifier<AppState> {
       scheduledAt: scheduledAt,
       actedAt: DateTime.now(),
       status: status,
+      dose: dose,
     );
     state = state.copyWith(
       medications: meds,

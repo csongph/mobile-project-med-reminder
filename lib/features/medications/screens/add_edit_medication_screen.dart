@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:thai_native_ocr/thai_native_ocr.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/common_widgets.dart';
 import '../../../core/state/app_state.dart';
 import '../models/medication.dart';
 import '../services/medication_label_parser.dart';
+import '../services/drug_search_service.dart';
 import '../../schedules/models/schedule.dart';
 
 class AddEditMedicationScreen extends ConsumerStatefulWidget {
@@ -33,7 +35,10 @@ class _AddEditMedicationScreenState
   String _recognizedText = '';
   List<String> _nameCandidates = [];
   bool _isScanning = false;
+  bool _isSearchingDrug = false;
   bool _isSaving = false;
+  List<DrugSearchResult> _onlineDrugCandidates = [];
+  final _drugSearchService = DrugSearchService();
 
   List<String> _times = ['08:00'];
   List<int> _daysOfWeek = [1, 2, 3, 4, 5, 6, 7]; // จันทร์ถึงอาทิตย์
@@ -126,18 +131,37 @@ class _AddEditMedicationScreenState
         _isScanning = true;
         _labelImagePath = image.path;
       });
-      final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
+      String text;
+      MedicationLabelParseResult parsed;
       try {
-        final result = await recognizer.processImage(
-          InputImage.fromFilePath(image.path),
+        // ThaiNativeOcr performs a bilingual Thai/English pass on Android and
+        // preprocesses difficult label photos. It keeps OCR on-device.
+        final thaiResult = await ThaiNativeOcr.recognize(
+          image.path,
+          preprocess: true,
         );
-        final text = result.text.trim();
-        if (text.isEmpty) {
-          throw Exception(
-            'อ่านข้อความในภาพไม่ได้ ลองถ่ายใหม่ให้ชัดและมีแสงเพียงพอ',
+        text = thaiResult.text.trim();
+        parsed = MedicationLabelParser.parseText(text);
+      } catch (_) {
+        // Keep the ML Kit Latin recognizer as a fallback for devices where the
+        // Thai native engine is unavailable or fails to initialize.
+        final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
+        try {
+          final result = await recognizer.processImage(
+            InputImage.fromFilePath(image.path),
           );
+          text = result.text.trim();
+          parsed = MedicationLabelParser.parse(result);
+        } finally {
+          await recognizer.close();
         }
-        final parsed = MedicationLabelParser.parse(result);
+      }
+      if (text.isEmpty) {
+        throw Exception(
+          'อ่านข้อความในภาพไม่ได้ ลองถ่ายใหม่ให้ชัดและมีแสงเพียงพอ',
+        );
+      }
+      {
         if (!mounted) return;
         setState(() {
           _recognizedText = text;
@@ -149,6 +173,10 @@ class _AddEditMedicationScreenState
           if (parsed.quantity != null) _quantity = parsed.quantity!;
           _step = 1;
         });
+        if (parsed.nameCandidates.isNotEmpty) {
+          await _searchOnline(parsed.nameCandidates.first);
+        }
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -156,8 +184,6 @@ class _AddEditMedicationScreenState
             ),
           ),
         );
-      } finally {
-        await recognizer.close();
       }
     } catch (error) {
       if (mounted) {
@@ -167,6 +193,41 @@ class _AddEditMedicationScreenState
       }
     } finally {
       if (mounted) setState(() => _isScanning = false);
+    }
+  }
+
+  Future<void> _searchOnline([String? query]) async {
+    final value = (query ?? _nameController.text).trim();
+    if (value.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณาพิมพ์ชื่อยาอย่างน้อย 2 ตัวอักษร')),
+      );
+      return;
+    }
+    setState(() => _isSearchingDrug = true);
+    try {
+      final results = await _drugSearchService.search(value);
+      if (!mounted) return;
+      setState(() => _onlineDrugCandidates = results);
+      if (results.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'ไม่พบชื่อยาจากฐานข้อมูลออนไลน์ กรุณาตรวจสอบหรือพิมพ์เอง',
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ค้นหาออนไลน์ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ต'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSearchingDrug = false);
     }
   }
 
@@ -571,7 +632,7 @@ class _AddEditMedicationScreenState
                                     ),
                                     SizedBox(height: 2),
                                     Text(
-                                      'ถ่ายรูปฉลากเพื่อเติมข้อมูลอัตโนมัติ',
+                                      'ถ่ายรูปฉลากเพื่อช่วยค้นหาชื่อยา',
                                       style: TextStyle(
                                         fontFamily: AppTheme.fontBody,
                                         fontSize: 14,
@@ -607,6 +668,64 @@ class _AddEditMedicationScreenState
                           ? 'กรุณากรอกชื่อยา'
                           : null,
                     ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: _isSearchingDrug ? null : _searchOnline,
+                        icon: _isSearchingDrug
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.search_rounded),
+                        label: const Text('ค้นหาชื่อยาออนไลน์'),
+                      ),
+                    ),
+                    if (_onlineDrugCandidates.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'ผลค้นหาจากฐานข้อมูลยาออนไลน์',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            ..._onlineDrugCandidates.map(
+                              (result) => ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                leading: const Icon(Icons.medication_outlined),
+                                title: Text(result.name),
+                                subtitle: Text(
+                                  result.rxcui == null
+                                      ? 'แตะเพื่อเลือกและตรวจสอบ'
+                                      : 'RxCUI ${result.rxcui} • แตะเพื่อเลือกและตรวจสอบ',
+                                ),
+                                onTap: () => setState(() {
+                                  _nameController.text = result.name;
+                                  _nameController.selection =
+                                      TextSelection.collapsed(
+                                        offset: result.name.length,
+                                      );
+                                  _onlineDrugCandidates = [];
+                                }),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
 
                     // จำนวนยา และเกณฑ์แจ้งเตือน

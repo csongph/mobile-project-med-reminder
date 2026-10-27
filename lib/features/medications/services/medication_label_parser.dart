@@ -10,7 +10,7 @@ class MedicationLabelParser {
     caseSensitive: false,
   );
   static final _quantity = RegExp(
-    r'(?:\b(?:qty|quantity|pack\s+of|contains|total)\s*[:#-]?\s*(\d{1,4})\b)|(?:\b(\d{1,4})\s*(?:tablets?|tabs?|capsules?|caps?|caplets?|เม็ด|แคปซูล)\b)',
+    r'(?:\b(?:qty|quantity|pack\s+of|contains|total)\s*[:#-]?\s*(\d{1,4})\b)|(?:\b(\d{1,4})\s*(?:tablets?|tabs?|capsules?|caps?|caplets?|pcs?|เม็ด|แคปซูล)\b)',
     caseSensitive: false,
   );
   static final _excluded = RegExp(
@@ -18,7 +18,7 @@ class MedicationLabelParser {
     caseSensitive: false,
   );
   static final _instruction = RegExp(
-    r'\b(?:take\s+\d|take\s+one|once\s+daily|twice\s+daily|before\s+meals?|after\s+meals?|with\s+food|as\s+directed|store\s+below|keep\s+out\s+of|shake\s+well|do\s+not\s+exceed)\b',
+    r'\b(?:take\s+(?:\d|one|two)|(?:once|twice|thrice)\s+daily|\d+\s*(?:times?|x)\s*(?:daily|a\s+day)?|before\s+meals?|after\s+meals?|with\s+food|as\s+directed|store\s+below|keep\s+out\s+of|shake\s+well|do\s+not\s+exceed|dosage|directions?)\b',
     caseSensitive: false,
   );
 
@@ -43,18 +43,39 @@ class MedicationLabelParser {
             .map((text) => _LabelLine(text, lines.length.toDouble(), 1)),
       );
     }
+    return _parseLines(lines, recognized.text);
+  }
 
+  /// Parses OCR text from engines that do not expose ML Kit's block model,
+  /// such as the Thai native OCR fallback used for Thai labels.
+  static MedicationLabelParseResult parseText(String rawText) {
+    final lines = rawText
+        .split(RegExp(r'\r?\n'))
+        .map((text) => text.trim())
+        .where((text) => text.isNotEmpty)
+        .map((text) => _LabelLine(text, 0, 1))
+        .toList();
+    return _parseLines(lines, rawText);
+  }
+
+  static MedicationLabelParseResult _parseLines(
+    List<_LabelLine> lines,
+    String rawText,
+  ) {
     final heights =
         lines.map((line) => line.height).where((height) => height > 0).toList()
           ..sort();
     final medianHeight = heights.isEmpty ? 1.0 : heights[heights.length ~/ 2];
     final scores = <String, double>{};
+    final displayText = <String, String>{};
     final originalOrder = <String, int>{};
 
     for (var index = 0; index < lines.length; index++) {
       final line = lines[index];
-      final text = _cleanCandidate(line.text);
-      if (!_isPlausibleName(text)) continue;
+      // Remove a pack-count suffix before ranking the medicine name. Labels
+      // often print "Medicine name - 30 tablets" on a single line.
+      final text = _cleanCandidate(line.text.replaceAll(_quantity, ''));
+      if (!_isPlausibleName(text) || _instruction.hasMatch(text)) continue;
 
       final letters = RegExp(r'[A-Za-z]').allMatches(text).length;
       final words = text
@@ -76,6 +97,7 @@ class MedicationLabelParser {
       final key = text.toLowerCase();
       if (!scores.containsKey(key) || score > scores[key]!) {
         scores[key] = score;
+        displayText[key] = text;
         originalOrder[key] = index;
       }
     }
@@ -87,10 +109,12 @@ class MedicationLabelParser {
             ? byScore
             : originalOrder[a]!.compareTo(originalOrder[b]!);
       });
-    final candidates = ranked.take(4).map((key) => key).toList();
+    final candidates = ranked.take(4).map((key) => displayText[key]!).toList();
 
     int? quantity;
     for (final line in lines) {
+      // "Take 1 tablet" is a dose instruction, not the pack quantity.
+      if (_instruction.hasMatch(line.text)) continue;
       final match = _quantity.firstMatch(line.text);
       final rawCount = match?.group(1) ?? match?.group(2);
       final parsed = int.tryParse(rawCount ?? '');
@@ -110,7 +134,7 @@ class MedicationLabelParser {
       nameCandidates: candidates,
       quantity: quantity,
       instructions: instructions,
-      rawText: recognized.text.trim(),
+      rawText: rawText.trim(),
     );
   }
 
@@ -134,7 +158,7 @@ class MedicationLabelParser {
   }
 
   static String _cleanCandidate(String text) => text
-      .replaceAll(RegExp(r'^[^A-Za-z0-9]+|[^A-Za-z0-9%]+$'), '')
+      .replaceAll(RegExp(r'^[^A-Za-z0-9ก-๙]+|[^A-Za-z0-9ก-๙%]+$'), '')
       .replaceAll(RegExp(r'\s+'), ' ')
       .trim();
 }

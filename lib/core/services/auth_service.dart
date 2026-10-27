@@ -1,8 +1,15 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 /// Service จัดการ Firebase Authentication
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
+  Future<void>? _googleInitialization;
+
+  Future<void> _initializeGoogle() {
+    return _googleInitialization ??= _googleSignIn.initialize();
+  }
 
   /// Stream ของ auth state changes
   Stream<User?> get authStateChanges => _auth.authStateChanges();
@@ -22,10 +29,7 @@ class AuthService {
     required String password,
   }) async {
     try {
-      await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
     } on FirebaseAuthException catch (e) {
       throw _mapAuthException(e);
     }
@@ -48,7 +52,23 @@ class AuthService {
 
   /// Sign out
   Future<void> signOut() async {
+    await _initializeGoogle();
+    await _googleSignIn.signOut();
     await _auth.signOut();
+  }
+
+  Future<void> signInWithGoogle() async {
+    await _initializeGoogle();
+    if (!_googleSignIn.supportsAuthenticate()) {
+      throw Exception('อุปกรณ์นี้ไม่รองรับการเข้าสู่ระบบด้วย Google');
+    }
+
+    final account = await _googleSignIn.authenticate();
+    final authentication = account.authentication;
+    final credential = GoogleAuthProvider.credential(
+      idToken: authentication.idToken,
+    );
+    await _auth.signInWithCredential(credential);
   }
 
   /// Send password reset email

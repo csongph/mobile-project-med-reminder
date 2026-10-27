@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/auth_service.dart';
@@ -214,14 +215,16 @@ class SettingsScreen extends ConsumerWidget {
                       'แอปช่วยจัดการตารางยาและประวัติการรับประทานยา',
                 ),
               ),
-              const Divider(height: 1, indent: 64),
-              ListTile(
-                leading: const _LeadingIcon(Icons.logout_rounded),
-                title: const Text('ออกจากระบบ'),
-                subtitle: const Text('Sign out จากบัญชีผู้ใช้'),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => _signOut(context),
-              ),
+              if (Firebase.apps.isNotEmpty) ...[
+                const Divider(height: 1, indent: 64),
+                ListTile(
+                  leading: const _LeadingIcon(Icons.logout_rounded),
+                  title: const Text('ออกจากระบบ'),
+                  subtitle: const Text('ออกจากบัญชีผู้ใช้'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => _signOut(context),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 28),
@@ -383,9 +386,9 @@ class SettingsScreen extends ConsumerWidget {
         await AuthService().signOut();
       } catch (e) {
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ออกจากระบบไม่สำเร็จ: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('ออกจากระบบไม่สำเร็จ: $e')));
       }
     }
   }

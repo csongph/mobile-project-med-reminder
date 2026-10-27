@@ -19,7 +19,8 @@ class SyncService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   bool _isSyncing = false;
-  final StreamController<bool> _syncStatusController = StreamController<bool>.broadcast();
+  final StreamController<bool> _syncStatusController =
+      StreamController<bool>.broadcast();
 
   /// Stream ของ sync status
   Stream<bool> get syncStatus => _syncStatusController.stream;
@@ -68,47 +69,78 @@ class SyncService {
     }
   }
 
+  /// Push the current local snapshot to Firestore when the user is signed in.
+  /// Local JSON remains the source used while offline; this creates an
+  /// idempotent cloud copy using the same stable document IDs.
+  Future<void> syncSnapshot({
+    required List<Medication> medications,
+    required List<Schedule> schedules,
+    required List<IntakeLog> logs,
+  }) async {
+    if (_auth.currentUser == null || !(await isConnected)) return;
+    try {
+      await _firestoreRepo.syncMedications(medications);
+      await _firestoreRepo.syncSchedules(schedules);
+      await _firestoreRepo.syncIntakeLogs(logs);
+    } catch (error) {
+      debugPrint('Snapshot sync skipped: $error');
+    }
+  }
+
   /// Process sync queue operations
   Future<void> _processSyncQueue(AppDatabase db) async {
-    final pendingItems = await (db.select(db.syncQueue)
-          ..where((sq) => sq.status.equals('pending'))
-          ..orderBy([(sq) => OrderingTerm.asc(sq.createdAt)]))
-        .get();
+    final pendingItems =
+        await (db.select(db.syncQueue)
+              ..where((sq) => sq.status.equals('pending'))
+              ..orderBy([(sq) => OrderingTerm.asc(sq.createdAt)]))
+            .get();
 
     for (final item in pendingItems) {
       try {
         await _processSyncQueueItem(db, item);
         // Mark as synced
-        await (db.update(db.syncQueue)..where((sq) => sq.id.equals(item.id)))
-            .write(SyncQueueCompanion(
-          status: const Value('synced'),
-          updatedAt: Value(DateTime.now()),
-        ));
+        await (db.update(
+          db.syncQueue,
+        )..where((sq) => sq.id.equals(item.id))).write(
+          SyncQueueCompanion(
+            status: const Value('synced'),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
       } catch (e) {
         // Increment retry count
         final newRetryCount = item.retryCount + 1;
         if (newRetryCount >= 5) {
           // Mark as failed after 5 retries
-          await (db.update(db.syncQueue)..where((sq) => sq.id.equals(item.id)))
-              .write(SyncQueueCompanion(
-            status: const Value('failed'),
-            retryCount: Value(newRetryCount),
-            errorMessage: Value(e.toString()),
-            updatedAt: Value(DateTime.now()),
-          ));
+          await (db.update(
+            db.syncQueue,
+          )..where((sq) => sq.id.equals(item.id))).write(
+            SyncQueueCompanion(
+              status: const Value('failed'),
+              retryCount: Value(newRetryCount),
+              errorMessage: Value(e.toString()),
+              updatedAt: Value(DateTime.now()),
+            ),
+          );
         } else {
-          await (db.update(db.syncQueue)..where((sq) => sq.id.equals(item.id)))
-              .write(SyncQueueCompanion(
-            retryCount: Value(newRetryCount),
-            updatedAt: Value(DateTime.now()),
-          ));
+          await (db.update(
+            db.syncQueue,
+          )..where((sq) => sq.id.equals(item.id))).write(
+            SyncQueueCompanion(
+              retryCount: Value(newRetryCount),
+              updatedAt: Value(DateTime.now()),
+            ),
+          );
         }
       }
     }
   }
 
   /// Process single sync queue item
-  Future<void> _processSyncQueueItem(AppDatabase db, SyncQueueRecord item) async {
+  Future<void> _processSyncQueueItem(
+    AppDatabase db,
+    SyncQueueRecord item,
+  ) async {
     switch (item.entityType) {
       case 'medication':
         await _syncMedication(item);
@@ -133,7 +165,8 @@ class SyncService {
         final serverId = await _firestoreRepo.createMedication(medication);
         // Update local record with server ID
         final db = await _dbManager.database;
-        await (db.update(db.medications)..where((m) => m.id.equals(item.entityId)))
+        await (db.update(db.medications)
+              ..where((m) => m.id.equals(item.entityId)))
             .write(MedicationsCompanion(serverId: Value(serverId)));
         break;
       case 'delete':
@@ -152,7 +185,8 @@ class SyncService {
       case 'update':
         final serverId = await _firestoreRepo.createSchedule(schedule);
         final db = await _dbManager.database;
-        await (db.update(db.schedules)..where((s) => s.id.equals(item.entityId)))
+        await (db.update(db.schedules)
+              ..where((s) => s.id.equals(item.entityId)))
             .write(SchedulesCompanion(serverId: Value(serverId)));
         break;
       case 'delete':
@@ -171,8 +205,9 @@ class SyncService {
       case 'update':
         final serverId = await _firestoreRepo.createIntakeLog(log);
         final db = await _dbManager.database;
-        await (db.update(db.intakeLogs)..where((l) => l.id.equals(item.entityId)))
-            .write(IntakeLogsCompanion(serverId: const Value(serverId)));
+        await (db.update(db.intakeLogs)
+              ..where((l) => l.id.equals(item.entityId)))
+            .write(IntakeLogsCompanion(serverId: Value(serverId)));
         break;
       case 'delete':
         // Intake logs ไม่ลบ (คงประวัติ)
@@ -185,66 +220,74 @@ class SyncService {
     // Pull medications
     final remoteMeds = await _firestoreRepo.getMedications();
     for (final med in remoteMeds) {
-      await db.into(db.medications).insert(
-        MedicationsCompanion.insert(
-          id: med.id,
-          userId: _userId ?? '',
-          name: med.name,
-          quantity: med.quantity,
-          lowStockThreshold: const Value(5),
-          imageUrl: Value(med.imageUrl),
-          notes: const Value(''),
-          createdAt: med.createdAt,
-          updatedAt: DateTime.now(),
-          serverId: const Value(med.id),
-        ),
-        mode: InsertMode.insertOrReplace,
-      );
+      await db
+          .into(db.medications)
+          .insert(
+            MedicationsCompanion.insert(
+              id: med.id,
+              userId: _userId ?? '',
+              name: med.name,
+              quantity: med.quantity,
+              lowStockThreshold: const Value(5),
+              imageUrl: Value(med.imageUrl),
+              notes: const Value(''),
+              createdAt: med.createdAt,
+              updatedAt: DateTime.now(),
+              serverId: Value(med.id),
+            ),
+            mode: InsertMode.insertOrReplace,
+          );
     }
 
     // Pull schedules
     final remoteSchedules = await _firestoreRepo.getSchedules();
     for (final schedule in remoteSchedules) {
-      await db.into(db.schedules).insert(
-        SchedulesCompanion.insert(
-          id: schedule.id,
-          medId: schedule.medId,
-          userId: _userId ?? '',
-          times: schedule.times.toString(),
-          daysOfWeek: schedule.daysOfWeek.toString(),
-          dosePerTime: const Value(1),
-          isActive: const Value(true),
-          updatedAt: DateTime.now(),
-          serverId: const Value(schedule.id),
-        ),
-        mode: InsertMode.insertOrReplace,
-      );
+      await db
+          .into(db.schedules)
+          .insert(
+            SchedulesCompanion.insert(
+              id: schedule.id,
+              medId: schedule.medId,
+              userId: _userId ?? '',
+              times: jsonEncode(schedule.times),
+              daysOfWeek: jsonEncode(schedule.daysOfWeek),
+              dosePerTime: Value(schedule.dosePerTime),
+              isActive: Value(schedule.isActive),
+              updatedAt: DateTime.now(),
+              serverId: Value(schedule.id),
+            ),
+            mode: InsertMode.insertOrReplace,
+          );
     }
 
     // Pull intake logs
     final remoteLogs = await _firestoreRepo.getIntakeLogs();
     for (final log in remoteLogs) {
-      await db.into(db.intakeLogs).insert(
-        IntakeLogsCompanion.insert(
-          id: log.id,
-          medId: log.medId,
-          userId: _userId ?? '',
-          scheduledAt: log.scheduledAt,
-          actedAt: Value(log.actedAt),
-          status: log.status.name,
-          dose: 1, // Default to 1 if not specified
-          idempotencyKey: log.id,
-          createdAt: DateTime.now(),
-          serverId: const Value(log.id),
-        ),
-        mode: InsertMode.insertOrReplace,
-      );
+      await db
+          .into(db.intakeLogs)
+          .insert(
+            IntakeLogsCompanion.insert(
+              id: log.id,
+              medId: log.medId,
+              userId: _userId ?? '',
+              scheduledAt: log.scheduledAt,
+              actedAt: Value(log.actedAt),
+              status: log.status.name,
+              dose: log.dose,
+              idempotencyKey: log.id,
+              createdAt: DateTime.now(),
+              serverId: Value(log.id),
+            ),
+            mode: InsertMode.insertOrReplace,
+          );
     }
   }
 
   /// Clear completed sync queue items
   Future<void> _clearCompletedSyncQueue(AppDatabase db) async {
-    await (db.delete(db.syncQueue)..where((sq) => sq.status.equals('synced'))).go();
+    await (db.delete(
+      db.syncQueue,
+    )..where((sq) => sq.status.equals('synced'))).go();
   }
 
   /// Add operation to sync queue
@@ -257,18 +300,20 @@ class SyncService {
     final db = await _dbManager.database;
     final id = 'sync_${DateTime.now().millisecondsSinceEpoch}';
 
-    await db.into(db.syncQueue).insert(
-      SyncQueueCompanion.insert(
-        id: id,
-        entityType: entityType,
-        entityId: entityId,
-        operation: operation,
-        payload: jsonEncode(payload),
-        status: 'pending',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      ),
-    );
+    await db
+        .into(db.syncQueue)
+        .insert(
+          SyncQueueCompanion.insert(
+            id: id,
+            entityType: entityType,
+            entityId: entityId,
+            operation: operation,
+            payload: jsonEncode(payload),
+            status: 'pending',
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+          ),
+        );
 
     // Trigger sync if connected
     if (await isConnected) {

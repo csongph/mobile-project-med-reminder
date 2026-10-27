@@ -23,6 +23,7 @@ class Schedule {
       'daysOfWeek': daysOfWeek,
       'dosePerTime': dosePerTime,
       'isActive': isActive,
+      'isDeleted': false,
     };
   }
 

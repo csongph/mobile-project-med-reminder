@@ -21,11 +21,12 @@ class FirestoreRepository {
   Future<String> createMedication(Medication medication) async {
     if (!_isSignedIn) throw Exception('User not signed in');
 
-    final docRef = await _firestore
+    final docRef = _firestore
         .collection('users')
         .doc(_userId)
         .collection('medications')
-        .add(medication.toMap());
+        .doc(medication.id);
+    await docRef.set(medication.toMap(), SetOptions(merge: true));
 
     return docRef.id;
   }
@@ -39,7 +40,7 @@ class FirestoreRepository {
         .doc(_userId)
         .collection('medications')
         .doc(medication.id)
-        .update(medication.toMap());
+        .set(medication.toMap(), SetOptions(merge: true));
   }
 
   /// ลบ medication (soft delete)
@@ -81,10 +82,10 @@ class FirestoreRepository {
         .where('isDeleted', isEqualTo: false)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return Medication.fromMap(doc.id, doc.data());
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return Medication.fromMap(doc.id, doc.data());
+          }).toList();
+        });
   }
 
   /// ============ SCHEDULES ============
@@ -93,11 +94,12 @@ class FirestoreRepository {
   Future<String> createSchedule(Schedule schedule) async {
     if (!_isSignedIn) throw Exception('User not signed in');
 
-    final docRef = await _firestore
+    final docRef = _firestore
         .collection('users')
         .doc(_userId)
         .collection('schedules')
-        .add(schedule.toMap());
+        .doc(schedule.id);
+    await docRef.set(schedule.toMap(), SetOptions(merge: true));
 
     return docRef.id;
   }
@@ -111,7 +113,7 @@ class FirestoreRepository {
         .doc(_userId)
         .collection('schedules')
         .doc(schedule.id)
-        .update(schedule.toMap());
+        .set(schedule.toMap(), SetOptions(merge: true));
   }
 
   /// ลบ schedule (soft delete)
@@ -153,10 +155,10 @@ class FirestoreRepository {
         .where('isDeleted', isEqualTo: false)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return Schedule.fromMap(doc.id, doc.data());
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return Schedule.fromMap(doc.id, doc.data());
+          }).toList();
+        });
   }
 
   /// ============ INTAKE LOGS ============
@@ -165,11 +167,12 @@ class FirestoreRepository {
   Future<String> createIntakeLog(IntakeLog log) async {
     if (!_isSignedIn) throw Exception('User not signed in');
 
-    final docRef = await _firestore
+    final docRef = _firestore
         .collection('users')
         .doc(_userId)
         .collection('intake_logs')
-        .add(log.toMap());
+        .doc(log.id);
+    await docRef.set(log.toMap(), SetOptions(merge: true));
 
     return docRef.id;
   }
@@ -183,7 +186,7 @@ class FirestoreRepository {
         .doc(_userId)
         .collection('intake_logs')
         .doc(log.id)
-        .update(log.toMap());
+        .set(log.toMap(), SetOptions(merge: true));
   }
 
   /// ดึง intake logs ทั้งหมดของ user
@@ -213,10 +216,10 @@ class FirestoreRepository {
         .orderBy('scheduledAt', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs.map((doc) {
-        return IntakeLog.fromMap(doc.id, doc.data());
-      }).toList();
-    });
+          return snapshot.docs.map((doc) {
+            return IntakeLog.fromMap(doc.id, doc.data());
+          }).toList();
+        });
   }
 
   /// ดึง intake logs ตาม medication ID

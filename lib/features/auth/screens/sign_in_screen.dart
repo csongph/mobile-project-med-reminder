@@ -16,6 +16,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _isSignUp = false;
   String? _errorMessage;
 
   final AuthService _authService = AuthService();
@@ -36,13 +37,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     });
 
     try {
-      await _authService.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
-
-      if (mounted) {
-        Navigator.of(context).pop(); // Go back to main app
+      if (_isSignUp) {
+        await _authService.signUpWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+      } else {
+        await _authService.signInWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
       }
     } catch (e) {
       setState(() {
@@ -54,6 +58,20 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      await _authService.signInWithGoogle();
+    } catch (error) {
+      if (mounted) setState(() => _errorMessage = error.toString());
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -99,12 +117,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'เข้าสู่ระบบเพื่อจัดการการทานยาของคุณ',
+                    'จัดการตารางยาและประวัติการรับประทาน',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppTheme.secondary,
-                    ),
+                    style: TextStyle(fontSize: 14, color: AppTheme.secondary),
                   ),
                   const SizedBox(height: 32),
 
@@ -172,17 +187,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
                   // Error message
                   if (_errorMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(
-                      color: Colors.red,
-                      fontSize: 14,
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(color: Colors.red, fontSize: 14),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
 
                   // Sign in button
                   SizedBox(
@@ -204,8 +216,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                 color: Colors.white,
                               ),
                             )
-                          : const Text(
-                              'เข้าสู่ระบบ',
+                          : Text(
+                              _isSignUp ? 'สร้างบัญชี' : 'เข้าสู่ระบบ',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -215,17 +227,32 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   ),
                   const SizedBox(height: 16),
 
+                  OutlinedButton.icon(
+                    onPressed: _isLoading ? null : _signInWithGoogle,
+                    icon: const Icon(Icons.account_circle_outlined),
+                    label: const Text('เข้าสู่ระบบด้วย Google'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
                   // Sign up link
                   TextButton(
-                    onPressed: () {
-                      // TODO: Navigate to sign up screen
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('สมัครสมาชิก - ใช้รหัสผ่านเดิมของคุณ'),
-                        ),
-                      );
-                    },
-                    child: const Text('ยังไม่มีบัญชี? สมัครสมาชิก'),
+                    onPressed: _isLoading
+                        ? null
+                        : () => setState(() {
+                            _isSignUp = !_isSignUp;
+                            _errorMessage = null;
+                          }),
+                    child: Text(
+                      _isSignUp
+                          ? 'มีบัญชีแล้ว? เข้าสู่ระบบ'
+                          : 'ยังไม่มีบัญชี? สมัครสมาชิก',
+                    ),
                   ),
                 ],
               ),

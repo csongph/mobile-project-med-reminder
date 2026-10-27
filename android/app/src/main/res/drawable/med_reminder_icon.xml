@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Deep teal rounded tile -->
+    <path
+        android:fillColor="#073F3D"
+        android:pathData="M18,4 L90,4 A14,14 0,0 1,104 18 L104,90 A14,14 0,0 1,90 104 L18,104 A14,14 0,0 1,4 90 L4,18 A14,14 0,0 1,18 4 Z" />
+    <!-- Medicine capsule -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,62 L50,42 A12,12 0,0 1,67 42 L76,51 A12,12 0,0 1,76 68 L56,88 A12,12 0,0 1,39 88 L30,79 A12,12 0,0 1,30 62 Z" />
+    <path
+        android:fillColor="#1B8A83"
+        android:pathData="M42,76 L64,54 L72,62 L50,84 Z" />
+    <!-- Reminder clock -->
+    <path
+        android:fillColor="#FFCF5C"
+        android:pathData="M75,16 A15,15 0,1 0,75 46 A15,15 0,1 0,75 16 Z" />
+    <path
+        android:strokeColor="#073F3D"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M75,22 L75,31 L81,34" />
+    <!-- Small notification dot -->
+    <path
+        android:fillColor="#EF6A5B"
+        android:pathData="M87,13 A5,5 0,1 0,87 23 A5,5 0,1 0,87 13 Z" />
+</vector>

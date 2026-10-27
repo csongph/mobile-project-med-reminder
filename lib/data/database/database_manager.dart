@@ -74,78 +74,101 @@ class DatabaseManager {
 
     final db = await database;
 
-    // Migrate medications
-    final medicationsList = jsonData['medications'] as List? ?? [];
-    for (final item in medicationsList) {
-      final data = item['data'] as Map<String, dynamic>;
-      final id = item['id'] as String;
-      await db.into(db.medications).insert(
-        MedicationsCompanion.insert(
-          id: id,
-          userId: userId,
-          name: data['name'] as String? ?? '',
-          quantity: (data['quantity'] as num?)?.toInt() ?? 0,
-          lowStockThreshold: const Value(5),
-          imageUrl: Value(data['imageUrl'] as String?),
-          notes: const Value(''),
-          createdAt: _parseDate(data['createdAt']),
-          updatedAt: DateTime.now(),
-        ),
-        mode: InsertMode.insertOrReplace,
-      );
-    }
+    // Every record is imported in a transaction. Invalid legacy records are
+    // ignored instead of stopping the rest of the user's data from importing.
+    await db.transaction(() async {
+      final medicationsList = jsonData['medications'] as List? ?? [];
+      for (final item in medicationsList.whereType<Map>()) {
+        final data = _asStringMap(item['data']);
+        final id = item['id'] as String?;
+        if (id == null || id.isEmpty || data == null) continue;
+        await db
+            .into(db.medications)
+            .insert(
+              MedicationsCompanion.insert(
+                id: id,
+                userId: userId,
+                name: data['name'] as String? ?? '',
+                quantity: (data['quantity'] as num?)?.toInt() ?? 0,
+                lowStockThreshold: Value(
+                  (data['lowStockThreshold'] as num?)?.toInt() ?? 5,
+                ),
+                imageUrl: Value(data['imageUrl'] as String?),
+                notes: Value(data['notes'] as String? ?? ''),
+                createdAt: _parseDate(data['createdAt']),
+                updatedAt: DateTime.now(),
+              ),
+              mode: InsertMode.insertOrReplace,
+            );
+      }
 
-    // Migrate schedules
-    final schedulesList = jsonData['schedules'] as List? ?? [];
-    for (final item in schedulesList) {
-      final data = item['data'] as Map<String, dynamic>;
-      final id = item['id'] as String;
-      await db.into(db.schedules).insert(
-        SchedulesCompanion.insert(
-          id: id,
-          medId: data['medId'] as String? ?? '',
-          userId: userId,
-          times: jsonEncode(data['times'] as List? ?? []),
-          daysOfWeek: jsonEncode(data['daysOfWeek'] as List? ?? []),
-          dosePerTime: const Value(1),
-          isActive: const Value(true),
-          updatedAt: DateTime.now(),
-        ),
-        mode: InsertMode.insertOrReplace,
-      );
-    }
+      final schedulesList = jsonData['schedules'] as List? ?? [];
+      for (final item in schedulesList.whereType<Map>()) {
+        final data = _asStringMap(item['data']);
+        final id = item['id'] as String?;
+        if (id == null || id.isEmpty || data == null) continue;
+        await db
+            .into(db.schedules)
+            .insert(
+              SchedulesCompanion.insert(
+                id: id,
+                medId: data['medId'] as String? ?? '',
+                userId: userId,
+                times: jsonEncode(data['times'] as List? ?? []),
+                daysOfWeek: jsonEncode(data['daysOfWeek'] as List? ?? []),
+                dosePerTime: Value((data['dosePerTime'] as num?)?.toInt() ?? 1),
+                isActive: Value(data['isActive'] as bool? ?? true),
+                updatedAt: DateTime.now(),
+              ),
+              mode: InsertMode.insertOrReplace,
+            );
+      }
 
-    // Migrate intake logs
-    final logsList = jsonData['logs'] as List? ?? [];
-    for (final item in logsList) {
-      final data = item['data'] as Map<String, dynamic>;
-      final id = item['id'] as String;
-      await db.into(db.intakeLogs).insert(
-        IntakeLogsCompanion.insert(
-          id: id,
-          medId: data['medId'] as String? ?? '',
-          userId: userId,
-          scheduledAt: _parseDate(data['scheduledAt']),
-          actedAt: Value(_parseNullableDate(data['actedAt'])),
-          status: data['status'] as String? ?? 'missed',
-          dose: 1, // Legacy data doesn't have dose, default to 1
-          idempotencyKey: id,
-          createdAt: DateTime.now(),
-        ),
-        mode: InsertMode.insertOrReplace,
-      );
-    }
+      final logsList = jsonData['logs'] as List? ?? [];
+      for (final item in logsList.whereType<Map>()) {
+        final data = _asStringMap(item['data']);
+        final id = item['id'] as String?;
+        if (id == null || id.isEmpty || data == null) continue;
+        await db
+            .into(db.intakeLogs)
+            .insert(
+              IntakeLogsCompanion.insert(
+                id: id,
+                medId: data['medId'] as String? ?? '',
+                userId: userId,
+                scheduledAt: _parseDate(data['scheduledAt']),
+                actedAt: Value(_parseNullableDate(data['actedAt'])),
+                status: data['status'] as String? ?? 'missed',
+                dose: (data['dose'] as num?)?.toInt() ?? 1,
+                idempotencyKey: id,
+                createdAt: DateTime.now(),
+              ),
+              mode: InsertMode.insertOrReplace,
+            );
+      }
 
-    // Migrate settings
-    await db.into(db.userSettings).insert(
-      UserSettingsCompanion.insert(
-        userId: userId,
-        remindersEnabled: const Value(false),
-        lowStockAlertsEnabled: const Value(true),
-        updatedAt: DateTime.now(),
-      ),
-      mode: InsertMode.insertOrReplace,
-    );
+      final settings = _asStringMap(jsonData['settings']) ?? const {};
+      await db
+          .into(db.userSettings)
+          .insert(
+            UserSettingsCompanion.insert(
+              userId: userId,
+              remindersEnabled: Value(
+                settings['remindersEnabled'] as bool? ?? false,
+              ),
+              lowStockAlertsEnabled: Value(
+                settings['lowStockAlertsEnabled'] as bool? ?? true,
+              ),
+              updatedAt: DateTime.now(),
+            ),
+            mode: InsertMode.insertOrReplace,
+          );
+    });
+  }
+
+  Map<String, dynamic>? _asStringMap(dynamic value) {
+    if (value is! Map) return null;
+    return Map<String, dynamic>.from(value);
   }
 
   DateTime _parseDate(dynamic value) {

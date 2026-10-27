@@ -9,6 +9,7 @@ class IntakeLog {
   final DateTime scheduledAt;
   final DateTime? actedAt;
   final IntakeStatus status;
+  final int dose;
 
   IntakeLog({
     required this.id,
@@ -16,6 +17,7 @@ class IntakeLog {
     required this.scheduledAt,
     this.actedAt,
     required this.status,
+    this.dose = 1,
   });
 
   Map<String, dynamic> toMap() {
@@ -24,6 +26,7 @@ class IntakeLog {
       'scheduledAt': scheduledAt.toIso8601String(),
       'actedAt': actedAt?.toIso8601String(),
       'status': status.name,
+      'dose': dose,
     };
   }
 
@@ -37,6 +40,7 @@ class IntakeLog {
         (e) => e.name == map['status'],
         orElse: () => IntakeStatus.missed,
       ),
+      dose: (map['dose'] as num?)?.toInt() ?? 1,
     );
   }
 
@@ -53,6 +57,7 @@ class IntakeLog {
     DateTime? scheduledAt,
     DateTime? actedAt,
     IntakeStatus? status,
+    int? dose,
   }) {
     return IntakeLog(
       id: id ?? this.id,
@@ -60,6 +65,7 @@ class IntakeLog {
       scheduledAt: scheduledAt ?? this.scheduledAt,
       actedAt: actedAt ?? this.actedAt,
       status: status ?? this.status,
+      dose: dose ?? this.dose,
     );
   }
 }

@@ -30,6 +30,7 @@ class Medication {
       'imageUrl': imageUrl,
       'notes': notes,
       'createdAt': createdAt.toIso8601String(),
+      'isDeleted': false,
     };
   }
 

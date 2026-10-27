@@ -21,8 +21,8 @@ class Medications extends Table {
 
   @override
   List<Set<Column>>? get uniqueKeys => [
-        {userId, id},
-      ];
+    {userId, id},
+  ];
 }
 
 @DataClassName('ScheduleRecord')
@@ -60,8 +60,8 @@ class IntakeLogs extends Table {
 
   @override
   List<Set<Column>>? get uniqueKeys => [
-        {medId, scheduledAt},
-      ];
+    {medId, scheduledAt},
+  ];
 }
 
 @DataClassName('SyncQueueRecord')
@@ -84,8 +84,10 @@ class SyncQueue extends Table {
 @DataClassName('UserSettingsRecord')
 class UserSettings extends Table {
   TextColumn get userId => text()();
-  BoolColumn get remindersEnabled => boolean().withDefault(const Constant(false))();
-  BoolColumn get lowStockAlertsEnabled => boolean().withDefault(const Constant(true))();
+  BoolColumn get remindersEnabled =>
+      boolean().withDefault(const Constant(false))();
+  BoolColumn get lowStockAlertsEnabled =>
+      boolean().withDefault(const Constant(true))();
   TextColumn get lastSyncTime => text().nullable()();
   DateTimeColumn get updatedAt => dateTime()();
 
@@ -97,7 +99,7 @@ class UserSettings extends Table {
   tables: [Medications, Schedules, IntakeLogs, SyncQueue, UserSettings],
 )
 class AppDatabase extends _$AppDatabase {
-  AppDatabase(QueryExecutor e) : super(e);
+  AppDatabase(super.e);
 
   @override
   int get schemaVersion => 1;
