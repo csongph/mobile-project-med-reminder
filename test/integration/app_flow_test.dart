@@ -8,9 +8,7 @@ import 'package:med_reminder/main.dart';
 void main() {
   testWidgets('user can open the main navigation flow', (tester) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(home: MainNavigationScreen()),
-      ),
+      const ProviderScope(child: MaterialApp(home: MainNavigationScreen())),
     );
     await tester.pumpAndSettle();
 

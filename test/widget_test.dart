@@ -12,9 +12,7 @@ void main() {
 
   testWidgets('App renders correctly smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(home: MainNavigationScreen()),
-      ),
+      const ProviderScope(child: MaterialApp(home: MainNavigationScreen())),
     );
     await tester.pumpAndSettle();
     // Verify the app shell rather than localized label rendering.  Labels can
