@@ -8,7 +8,18 @@ import 'package:med_reminder/main.dart';
 void main() {
   testWidgets('user can open the main navigation flow', (tester) async {
     await tester.pumpWidget(
-      const ProviderScope(child: MaterialApp(home: MainNavigationScreen())),
+      const ProviderScope(
+        child: MaterialApp(
+          home: MainNavigationScreen(
+            screenOverrides: [
+              Text('screen 1'),
+              Text('screen 2'),
+              Text('screen 3'),
+              Text('screen 4'),
+            ],
+          ),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 

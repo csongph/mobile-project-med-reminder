@@ -90,7 +90,9 @@ class AuthWrapper extends ConsumerWidget {
 }
 
 class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({super.key});
+  final List<Widget>? screenOverrides;
+
+  const MainNavigationScreen({super.key, this.screenOverrides});
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
@@ -107,12 +109,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     });
   }
 
-  final List<Widget> _screens = const [
-    TodayScreen(),
-    MedicationsScreen(),
-    HistoryScreen(),
-    SettingsScreen(),
-  ];
+  List<Widget> get _screens => widget.screenOverrides ?? const [
+        TodayScreen(),
+        MedicationsScreen(),
+        HistoryScreen(),
+        SettingsScreen(),
+      ];
 
   @override
   Widget build(BuildContext context) {
