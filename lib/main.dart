@@ -109,7 +109,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     });
   }
 
-  List<Widget> get _screens => widget.screenOverrides ?? const [
+  List<Widget> get _screens =>
+      widget.screenOverrides ??
+      const [
         TodayScreen(),
         MedicationsScreen(),
         HistoryScreen(),
