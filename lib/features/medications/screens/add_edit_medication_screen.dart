@@ -10,6 +10,7 @@ import '../../../core/state/app_state.dart';
 import '../models/medication.dart';
 import '../services/medication_label_parser.dart';
 import '../services/drug_search_service.dart';
+import '../services/ai_label_service.dart';
 import '../../schedules/models/schedule.dart';
 
 class AddEditMedicationScreen extends ConsumerStatefulWidget {
@@ -39,6 +40,7 @@ class _AddEditMedicationScreenState
   bool _isSaving = false;
   List<DrugSearchResult> _onlineDrugCandidates = [];
   final _drugSearchService = DrugSearchService();
+  final _aiLabelService = AiLabelService();
 
   List<String> _times = ['08:00'];
   List<int> _daysOfWeek = [1, 2, 3, 4, 5, 6, 7]; // จันทร์ถึงอาทิตย์
@@ -131,6 +133,45 @@ class _AddEditMedicationScreenState
         _isScanning = true;
         _labelImagePath = image.path;
       });
+
+      // Prefer server-side vision for Thai/mixed-language labels. The
+      // on-device OCR below remains a safe offline fallback when the user is
+      // not signed in, has no network, or the function is not deployed yet.
+      try {
+        final ai = await _aiLabelService.analyze(image.path);
+        if (ai != null && ai.bestName != null) {
+          if (!mounted) return;
+          setState(() {
+            _recognizedText = ai.rawText;
+            _nameCandidates = [
+              if (ai.brandName != null) ai.brandName!,
+              if (ai.genericName != null && ai.genericName != ai.brandName)
+                ai.genericName!,
+            ];
+            _nameController.text = ai.bestName!;
+            if (ai.instructions != null &&
+                _notesController.text.trim().isEmpty) {
+              _notesController.text = ai.instructions!;
+            }
+            if (ai.quantity != null && ai.quantity! > 0) {
+              _quantity = ai.quantity!;
+            }
+            _step = 1;
+          });
+          await _searchOnline(ai.bestName);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('AI อ่านฉลากแล้ว กรุณาตรวจสอบชื่อยาและขนาดก่อนบันทึก'),
+            ),
+          );
+          return;
+        }
+      } catch (_) {
+        // Continue with local OCR. This also makes the feature usable before
+        // the Firebase Function/Gemini secret has been configured.
+      }
+
       String text;
       MedicationLabelParseResult parsed;
       try {
