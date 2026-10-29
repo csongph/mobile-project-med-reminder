@@ -162,7 +162,9 @@ class _AddEditMedicationScreenState
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('AI อ่านฉลากแล้ว กรุณาตรวจสอบชื่อยาและขนาดก่อนบันทึก'),
+              content: Text(
+                'AI อ่านฉลากแล้ว กรุณาตรวจสอบชื่อยาและขนาดก่อนบันทึก',
+              ),
             ),
           );
           return;
