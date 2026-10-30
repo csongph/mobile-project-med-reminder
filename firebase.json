@@ -1,1 +1,2 @@
 {"flutter":{"platforms":{"android":{"default":{"projectId":"med-reminder-1","appId":"1:116012808152:android:f5bf5bcb9558528fcd64ad","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"med-reminder-1","configurations":{"android":"1:116012808152:android:f5bf5bcb9558528fcd64ad"}}}}},"firestore":{"rules":"firestore.rules","indexes":"firestore.indexes.json"},"functions":{"source":"functions"}}
+ 
